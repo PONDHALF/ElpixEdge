@@ -397,4 +397,3 @@ public class EdgeCommand implements CommandExecutor, TabCompleter {
         return null;
     }
 }
-}
