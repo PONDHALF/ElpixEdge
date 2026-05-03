@@ -78,6 +78,17 @@ public final class ElpixEdge extends JavaPlugin {
         getCommand("edgetag").setExecutor(cmd);
         getCommand("edgeinstance").setExecutor(cmd);
         getCommand("edgescene").setExecutor(cmd);
+        getCommand("edgedungeon").setExecutor(cmd);
+        getCommand("edgeloot").setExecutor(cmd);
+
+        // Register Tab Completers
+        getCommand("edgeitem").setTabCompleter(cmd);
+        getCommand("edgemob").setTabCompleter(cmd);
+        getCommand("edgetag").setTabCompleter(cmd);
+        getCommand("edgeinstance").setTabCompleter(cmd);
+        getCommand("edgescene").setTabCompleter(cmd);
+        getCommand("edgedungeon").setTabCompleter(cmd);
+        getCommand("edgeloot").setTabCompleter(cmd);
 
         getLogger().info("ElpixEdge has been enabled successfully.");
     }

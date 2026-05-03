@@ -1,0 +1,35 @@
+name: ElpixEdge
+version: 1.0.0
+main: net.elpixedge.core.ElpixEdge
+api-version: '1.21'
+author: ElpixEdge Team
+softdepend: [ProtocolLib, BetterModel, FancyNpcs]
+
+commands:
+  status:
+    description: "Check your status"
+  custom_holo:
+    description: "Toggle custom holograms"
+  admin_book:
+    description: "Admin options book"
+  edgeitem:
+    description: "Manage and spawn Items"
+  edgemob:
+    description: "Spawn and manage custom Mobs"
+  claimstash:
+    description: "Claim temporary items from stash"
+  edgetag:
+    description: "Manage player tags (add/remove/list)"
+    usage: "/edgetag <add|remove|list> <player> [tag]"
+  edgeinstance:
+    description: "Enter or leave private instances"
+    usage: "/edgeinstance <enter|leave> [instanceId]"
+  edgescene:
+    description: "Play or stop cutscenes"
+    usage: "/edgescene <play|stop> [cutsceneId]"
+  edgedungeon:
+    description: "Manage dungeon instances"
+    usage: "/edgedungeon <enter|leave|reload> [dungeonId]"
+  edgeloot:
+    description: "Manage loot chests"
+    usage: "/edgeloot <reload>"

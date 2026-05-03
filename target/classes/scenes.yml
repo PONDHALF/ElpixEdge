@@ -1,0 +1,9 @@
+cutscenes:
+  temple_vision:
+    duration_per_point: 60
+    message_start: "&5[Vision] &7The ancient trial begins..."
+    message_end: "&5[Vision] &7Prove your worth."
+    points:
+      - "world, -17, 58, -91, 60, 15"
+      - "world, -29, 55.5, -82, 90, 0"
+      - "world, -40, 55.5, -82, 90, 0"
