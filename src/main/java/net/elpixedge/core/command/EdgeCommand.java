@@ -284,99 +284,117 @@ public class EdgeCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (command.getName().equalsIgnoreCase("edgeloot")) {
-            List<String> completions = new ArrayList<>();
+        String cmd = command.getName().toLowerCase();
+        List<String> completions = new ArrayList<>();
+
+        if (cmd.equals("edgeloot")) {
             if (args.length == 1) {
-                for (String sub : new String[]{"reload", "give"}) {
-                    if (sub.startsWith(args[0].toLowerCase())) completions.add(sub);
-                }
-                return completions;
-            }
-        }
-        if (command.getName().equalsIgnoreCase("edgeitem") && args.length == 1) {
-            List<String> completions = new ArrayList<>();
-            if (plugin.getConfig().getConfigurationSection("items") != null) {
-                for (String key : plugin.getConfig().getConfigurationSection("items").getKeys(false)) {
-                    if (key.toLowerCase().startsWith(args[0].toLowerCase())) completions.add(key);
+                String[] subs = {"reload", "give"};
+                for (String s : subs) if (s.startsWith(args[0].toLowerCase())) completions.add(s);
+            } else if (args.length == 2 && args[0].equalsIgnoreCase("give")) {
+                // Suggest Loot Templates from YAML
+                File f = new File(plugin.getDataFolder(), "loot_chests.yml");
+                if (f.exists()) {
+                    YamlConfiguration cfg = YamlConfiguration.loadConfiguration(f);
+                    ConfigurationSection sec = cfg.getConfigurationSection("templates");
+                    if (sec != null) {
+                        for (String key : sec.getKeys(false)) {
+                            if (key.toLowerCase().startsWith(args[1].toLowerCase())) completions.add(key);
+                        }
+                    }
                 }
             }
             return completions;
         }
-        if (command.getName().equalsIgnoreCase("edgetag")) {
-            List<String> completions = new ArrayList<>();
+
+        if (cmd.equals("edgedungeon")) {
             if (args.length == 1) {
-                for (String sub : new String[]{"add", "remove", "list"}) {
-                    if (sub.startsWith(args[0].toLowerCase())) completions.add(sub);
-                }
-                return completions;
-            }
-            if (args.length == 2) {
-                for (org.bukkit.entity.Player online : org.bukkit.Bukkit.getOnlinePlayers()) {
-                    if (online.getName().toLowerCase().startsWith(args[1].toLowerCase())) completions.add(online.getName());
-                }
-                return completions;
-            }
-            if (args.length == 3 && args[0].equalsIgnoreCase("remove")) {
-                org.bukkit.entity.Player target = org.bukkit.Bukkit.getPlayerExact(args[1]);
-                if (target != null) {
-                    TagManager tagMgr = plugin.getModule(TagManager.class);
-                    if (tagMgr != null) {
-                        for (String tag : tagMgr.getTags(target)) {
-                            if (tag.startsWith(args[2].toLowerCase())) completions.add(tag);
+                String[] subs = {"enter", "leave", "reload"};
+                for (String s : subs) if (s.startsWith(args[0].toLowerCase())) completions.add(s);
+            } else if (args.length == 2 && args[0].equalsIgnoreCase("enter")) {
+                // Suggest Dungeons from YAML
+                File f = new File(plugin.getDataFolder(), "dungeons.yml");
+                if (f.exists()) {
+                    YamlConfiguration cfg = YamlConfiguration.loadConfiguration(f);
+                    ConfigurationSection sec = cfg.getConfigurationSection("dungeons");
+                    if (sec != null) {
+                        for (String key : sec.getKeys(false)) {
+                            if (key.toLowerCase().startsWith(args[1].toLowerCase())) completions.add(key);
                         }
                     }
                 }
-                return completions;
             }
+            return completions;
         }
-        if (command.getName().equalsIgnoreCase("edgeinstance")) {
-            List<String> completions = new ArrayList<>();
+
+        if (cmd.equals("edgeitem")) {
             if (args.length == 1) {
-                for (String sub : new String[]{"enter", "leave"}) {
-                    if (sub.startsWith(args[0].toLowerCase())) completions.add(sub);
-                }
-                return completions;
-            }
-            if (args.length == 2 && args[0].equalsIgnoreCase("enter")) {
-                java.util.Set<String> names = new java.util.HashSet<>();
-                // ElpixEdge schematics folder
-                java.io.File dir1 = new java.io.File(plugin.getDataFolder(), "schematics");
-                if (dir1.exists() && dir1.isDirectory()) {
-                    for (java.io.File f : dir1.listFiles()) {
-                        String n = f.getName().replaceAll("\\.(schem|schm)$", "");
-                        if (n.toLowerCase().startsWith(args[1].toLowerCase())) names.add(n);
+                ConfigurationSection sec = plugin.getConfig().getConfigurationSection("items");
+                if (sec != null) {
+                    for (String key : sec.getKeys(false)) {
+                        if (key.toLowerCase().startsWith(args[0].toLowerCase())) completions.add(key);
                     }
                 }
-                // FastAsyncWorldEdit schematics folder
-                java.io.File dir2 = new java.io.File(plugin.getServer().getWorldContainer(), "plugins/FastAsyncWorldEdit/schematics");
-                if (dir2.exists() && dir2.isDirectory()) {
-                    for (java.io.File f : dir2.listFiles()) {
-                        String n = f.getName().replaceAll("\\.(schem|schm)$", "");
-                        if (n.toLowerCase().startsWith(args[1].toLowerCase())) names.add(n);
+            }
+            return completions;
+        }
+
+        if (cmd.equals("edgemob")) {
+            if (args.length == 1) {
+                ConfigurationSection sec = plugin.getConfig().getConfigurationSection("mobs");
+                if (sec != null) {
+                    for (String key : sec.getKeys(false)) {
+                        if (key.toLowerCase().startsWith(args[0].toLowerCase())) completions.add(key);
                     }
                 }
-                completions.addAll(names);
-                return completions;
             }
+            return completions;
         }
-        if (command.getName().equalsIgnoreCase("edgescene")) {
-            List<String> completions = new ArrayList<>();
+
+        if (cmd.equals("edgetag")) {
             if (args.length == 1) {
-                for (String sub : new String[]{"play", "stop"}) {
-                    if (sub.startsWith(args[0].toLowerCase())) completions.add(sub);
+                String[] subs = {"add", "remove", "list", "reload"};
+                for (String s : subs) if (s.startsWith(args[0].toLowerCase())) completions.add(s);
+            } else if (args.length == 2) {
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    if (p.getName().toLowerCase().startsWith(args[1].toLowerCase())) completions.add(p.getName());
                 }
-                return completions;
             }
+            return completions;
         }
-        if (command.getName().equalsIgnoreCase("edgedungeon")) {
-            List<String> completions = new ArrayList<>();
+
+        if (cmd.equals("edgescene")) {
             if (args.length == 1) {
-                for (String sub : new String[]{"enter", "leave", "reload"}) {
-                    if (sub.startsWith(args[0].toLowerCase())) completions.add(sub);
+                String[] subs = {"play", "stop"};
+                for (String s : subs) if (s.startsWith(args[0].toLowerCase())) completions.add(s);
+            } else if (args.length == 2 && args[0].equalsIgnoreCase("play")) {
+                ConfigurationSection sec = plugin.getConfig().getConfigurationSection("cutscenes");
+                if (sec != null) {
+                    for (String key : sec.getKeys(false)) {
+                        if (key.toLowerCase().startsWith(args[1].toLowerCase())) completions.add(key);
+                    }
                 }
-                return completions;
             }
+            return completions;
         }
+
+        if (cmd.equals("edgeinstance")) {
+            if (args.length == 1) {
+                String[] subs = {"enter", "leave"};
+                for (String s : subs) if (s.startsWith(args[0].toLowerCase())) completions.add(s);
+            } else if (args.length == 2 && args[0].equalsIgnoreCase("enter")) {
+                File dir = new File(plugin.getDataFolder(), "schematics");
+                if (dir.exists() && dir.isDirectory()) {
+                    for (File f : dir.listFiles()) {
+                        String n = f.getName().replace(".schem", "").replace(".schm", "");
+                        if (n.toLowerCase().startsWith(args[1].toLowerCase())) completions.add(n);
+                    }
+                }
+            }
+            return completions;
+        }
+
         return null;
     }
+}
 }

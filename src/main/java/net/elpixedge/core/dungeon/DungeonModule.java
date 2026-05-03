@@ -10,13 +10,12 @@ import net.elpixedge.core.utils.Keys;
 import org.bukkit.*;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.EntityType;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDeathEvent;
-import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -42,7 +41,6 @@ public class DungeonModule implements Module, Listener {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
         loadConfig();
         
-        // Exit portal checker
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -90,29 +88,29 @@ public class DungeonModule implements Module, Listener {
                     room.setClearCondition(DungeonRoom.ClearCondition.valueOf(roomSec.getString("clear_condition", "KILL_ALL").toUpperCase()));
                     room.setTargetMobId(roomSec.getString("target_mob"));
                     
-                    String spawnStr = roomSec.getString("spawn_point", "0,0,0");
+                    String spawnStr = roomSec.getString("spawn_point", "0,65,0");
                     String[] sp = spawnStr.split(",");
-                    room.setSpawnPoint(new Location(null, Double.parseDouble(sp[0]), Double.parseDouble(sp[1]), Double.parseDouble(sp[2])));
+                    room.setSpawnPoint(new Location(null, Double.parseDouble(sp[0].trim()), Double.parseDouble(sp[1].trim()), Double.parseDouble(sp[2].trim())));
 
                     String exitMinStr = roomSec.getString("exit_min");
                     if (exitMinStr != null) {
                         String[] em = exitMinStr.split(",");
-                        room.setExitPortalMin(new Location(null, Double.parseDouble(em[0]), Double.parseDouble(em[1]), Double.parseDouble(em[2])));
+                        room.setExitPortalMin(new Location(null, Double.parseDouble(em[0].trim()), Double.parseDouble(em[1].trim()), Double.parseDouble(em[2].trim())));
                     }
                     String exitMaxStr = roomSec.getString("exit_max");
                     if (exitMaxStr != null) {
                         String[] ex = exitMaxStr.split(",");
-                        room.setExitPortalMax(new Location(null, Double.parseDouble(ex[0]), Double.parseDouble(ex[1]), Double.parseDouble(ex[2])));
+                        room.setExitPortalMax(new Location(null, Double.parseDouble(ex[0].trim()), Double.parseDouble(ex[1].trim()), Double.parseDouble(ex[2].trim())));
                     }
 
                     List<Map<?, ?>> mobList = roomSec.getMapList("mobs");
                     for (Map<?, ?> mobMap : mobList) {
                         String mobId = (String) mobMap.get("mob_id");
-                        int amount = ((Number) mobMap.getOrDefault("amount", 1)).intValue();
-                        int level = ((Number) mobMap.getOrDefault("level", 1)).intValue();
-                        String locStr = (String) mobMap.getOrDefault("loc", "0,0,0");
+                        int amount = mobMap.containsKey("amount") ? ((Number) mobMap.get("amount")).intValue() : 1;
+                        int level = mobMap.containsKey("level") ? ((Number) mobMap.get("level")).intValue() : 1;
+                        String locStr = mobMap.containsKey("loc") ? (String) mobMap.get("loc") : "0,64,0";
                         String[] lp = locStr.split(",");
-                        room.getMobs().add(new DungeonRoom.MobSpawn(mobId, amount, level, Double.parseDouble(lp[0]), Double.parseDouble(lp[1]), Double.parseDouble(lp[2])));
+                        room.getMobs().add(new DungeonRoom.MobSpawn(mobId, amount, level, Double.parseDouble(lp[0].trim()), Double.parseDouble(lp[1].trim()), Double.parseDouble(lp[2].trim())));
                     }
                     def.rooms.add(room);
                 }
@@ -149,15 +147,10 @@ public class DungeonModule implements Module, Listener {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null) {
                 p.teleport(spawn);
-                
-                // --- Room Announcement ---
-                String roomTitle = ChatColor.GOLD + room.getName();
-                String roomSub = ChatColor.GRAY + "Room " + (roomIndex + 1) + " of " + instance.getRooms().size();
-                p.sendTitle(roomTitle, roomSub, 10, 40, 10);
+                p.sendTitle(ChatColor.GOLD + room.getName(), ChatColor.GRAY + "Room " + (roomIndex + 1) + " of " + instance.getRooms().size(), 10, 40, 10);
                 p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 0.8f, 1.2f);
             }
         }
-
         spawnRoomMobs(instance, room);
     }
 
@@ -165,13 +158,8 @@ public class DungeonModule implements Module, Listener {
         instance.getActiveMobs().clear();
         for (DungeonRoom.MobSpawn spawn : room.getMobs()) {
             Location loc = new Location(instance.getWorld(), spawn.getX(), spawn.getY(), spawn.getZ());
-            // Integration with CombatModule to spawn custom mobs
-            net.elpixedge.core.instance.SchematicInstanceManager sim = plugin.getModule(net.elpixedge.core.instance.SchematicInstanceManager.class);
-            // Since we need to spawn mobs, we'll reuse the logic from SchematicInstanceManager if possible
-            // but for now let's just spawn standard entities as placeholder if CombatModule is not accessible
             for (int i = 0; i < spawn.getAmount(); i++) {
-                // Simplified spawn logic
-                LivingEntity mob = (LivingEntity) instance.getWorld().spawnEntity(loc, EntityType.ZOMBIE); // Placeholder
+                LivingEntity mob = (LivingEntity) instance.getWorld().spawnEntity(loc, EntityType.ZOMBIE);
                 mob.getPersistentDataContainer().set(Keys.customMobId, PersistentDataType.STRING, spawn.getMobId());
                 mob.getPersistentDataContainer().set(Keys.lvl, PersistentDataType.INTEGER, spawn.getLevel());
                 instance.getActiveMobs().add(mob);
@@ -182,18 +170,11 @@ public class DungeonModule implements Module, Listener {
     @EventHandler
     public void onMobDeath(EntityDeathEvent event) {
         LivingEntity mob = event.getEntity();
-        String instanceId = null;
         for (DungeonInstance instance : activeInstances.values()) {
-            if (instance.getActiveMobs().contains(mob)) {
-                instanceId = instance.getInstanceId();
-                break;
+            if (instance.getActiveMobs().remove(mob)) {
+                checkRoomClear(instance);
+                return;
             }
-        }
-
-        if (instanceId != null) {
-            DungeonInstance instance = activeInstances.get(instanceId);
-            instance.getActiveMobs().remove(mob);
-            checkRoomClear(instance);
         }
     }
 
@@ -203,9 +184,8 @@ public class DungeonModule implements Module, Listener {
         if (room.getClearCondition() == DungeonRoom.ClearCondition.KILL_ALL) {
             cleared = instance.getActiveMobs().isEmpty();
         } else if (room.getClearCondition() == DungeonRoom.ClearCondition.KILL_TARGET) {
-            // Check if target mob was killed
-            // (Assuming target mob ID was tracked)
-            cleared = instance.getActiveMobs().stream().noneMatch(m -> m.getPersistentDataContainer().getOrDefault(Keys.customMobId, PersistentDataType.STRING, "").equals(room.getTargetMobId()));
+            cleared = instance.getActiveMobs().stream().noneMatch(m -> 
+                room.getTargetMobId().equals(m.getPersistentDataContainer().get(Keys.customMobId, PersistentDataType.STRING)));
         }
 
         if (cleared) {
@@ -216,14 +196,11 @@ public class DungeonModule implements Module, Listener {
                     p.sendMessage(ChatColor.GREEN + "Room Cleared!");
                     p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
                     
-                    // Unlock Dungeon Chest for this player if it exists in this room
                     LootModule loot = plugin.getModule(LootModule.class);
                     if (loot != null) {
                         String chestId = instance.getDungeonId() + "_" + room.getId() + "_loot";
                         net.elpixedge.core.loot.LootChest chest = loot.getChest(chestId);
-                        if (chest instanceof DungeonChest dc) {
-                            dc.unlockFor(p);
-                        }
+                        if (chest instanceof DungeonChest dc) dc.unlockFor(p);
                     }
                 }
             }
@@ -238,13 +215,11 @@ public class DungeonModule implements Module, Listener {
         DungeonRoom room = instance.getCurrentRoom();
         if (room == null || room.getExitPortalMin() == null || room.getExitPortalMax() == null) return;
 
-        // Check if room is cleared first
         if (room.getClearCondition() != DungeonRoom.ClearCondition.NONE && !instance.getClearedRooms().contains(room.getId())) {
             return;
         }
 
-        Location loc = player.getLocation();
-        if (isInside(loc, room.getExitPortalMin(), room.getExitPortalMax())) {
+        if (isInside(player.getLocation(), room.getExitPortalMin(), room.getExitPortalMax())) {
             if (instance.hasNextRoom()) {
                 instance.nextRoom();
                 startRoom(instance, instance.getCurrentRoomIndex());
@@ -271,13 +246,7 @@ public class DungeonModule implements Module, Listener {
             DungeonInstance instance = activeInstances.get(instanceId);
             instance.getPlayers().remove(player.getUniqueId());
             Location returnLoc = instance.getReturnLocations().remove(player.getUniqueId());
-            
-            // Teleport back to return location
-            if (returnLoc != null) {
-                player.teleport(returnLoc);
-            } else {
-                player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
-            }
+            player.teleport(returnLoc != null ? returnLoc : Bukkit.getWorlds().get(0).getSpawnLocation());
             player.sendMessage(ChatColor.YELLOW + "You have left the dungeon.");
 
             if (instance.getPlayers().isEmpty()) {
