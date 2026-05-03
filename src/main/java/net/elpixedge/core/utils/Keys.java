@@ -7,6 +7,7 @@ public class Keys {
     public static NamespacedKey hp, def, dmg, magicDmg, critChance, critDamage, lvl, skill, manaCost, ranged, mining, gathering, manaRegen;
     public static NamespacedKey customMobId, lastDamager, guiAction, customItemId, itemCooldown, enchantGroup, customBlock;
     public static NamespacedKey reqSkill, reqSkillLvl;
+    public static NamespacedKey dungeonId, roomId, chestId, chestOpened;
     // Off-hand & magic system keys
     public static NamespacedKey offhandTag;     // marks item as an off-hand weapon
     public static NamespacedKey bossTag;        // marks a mob as Boss (immune to stun)
@@ -46,6 +47,10 @@ public class Keys {
         customBlock = new NamespacedKey(plugin, "custom_block");
         reqSkill = new NamespacedKey(plugin, "req_skill");
         reqSkillLvl = new NamespacedKey(plugin, "req_skill_lvl");
+        dungeonId = new NamespacedKey(plugin, "dungeon_id");
+        roomId = new NamespacedKey(plugin, "room_id");
+        chestId = new NamespacedKey(plugin, "chest_id");
+        chestOpened = new NamespacedKey(plugin, "chest_opened");
         // Off-hand & magic system
         offhandTag     = new NamespacedKey(plugin, "offhand_weapon");
         bossTag        = new NamespacedKey(plugin, "boss_mob");

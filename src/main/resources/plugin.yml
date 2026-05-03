@@ -27,3 +27,9 @@ commands:
   edgescene:
     description: "Play or stop cutscenes"
     usage: "/edgescene <play|stop> [cutsceneId]"
+  edgedungeon:
+    description: "Manage dungeon instances"
+    usage: "/edgedungeon <enter|leave|reload> [dungeonId]"
+  edgeloot:
+    description: "Manage loot chests"
+    usage: "/edgeloot <reload>"

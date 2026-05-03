@@ -15,6 +15,8 @@ import net.elpixedge.core.quest.QuestEngine;
 import net.elpixedge.core.spawner.SpawnerModule;
 import net.elpixedge.core.tag.QuestTriggerListener;
 import net.elpixedge.core.tag.TagManager;
+import net.elpixedge.core.loot.LootModule;
+import net.elpixedge.core.dungeon.DungeonModule;
 import org.bukkit.plugin.java.JavaPlugin;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -58,6 +60,8 @@ public final class ElpixEdge extends JavaPlugin {
         registerModule(new CinematicController(this));
         registerModule(new SchematicInstanceManager(this));
         registerModule(new NpcVisibilityManager(this));
+        registerModule(new LootModule(this));
+        registerModule(new DungeonModule(this));
 
         for (Module module : modules) {
             module.onEnable();

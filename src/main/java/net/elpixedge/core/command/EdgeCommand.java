@@ -9,6 +9,7 @@ import net.elpixedge.core.instance.CinematicController;
 import net.elpixedge.core.player.PlayerModule;
 import net.elpixedge.core.player.PlayerProfile;
 import net.elpixedge.core.utils.Keys;
+import net.elpixedge.core.loot.LootModule;
 import org.bukkit.ChatColor;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.command.Command;
@@ -59,6 +60,45 @@ public class EdgeCommand implements CommandExecutor, TabCompleter {
 
         if (cmd.equals("status")) {
             plugin.getModule(GuiModule.class).openStatusMenu(p);
+            return true;
+        }
+
+        if (cmd.equals("edgeloot")) {
+            if (!p.isOp()) return false;
+            LootModule lootMod = plugin.getModule(LootModule.class);
+            if (args.length > 0) {
+                if (args[0].equalsIgnoreCase("reload")) {
+                    lootMod.loadConfig();
+                    p.sendMessage(ChatColor.GREEN + "Loot Chest config reloaded.");
+                    return true;
+                } else if (args[0].equalsIgnoreCase("give") && args.length > 1) {
+                    lootMod.giveChestItem(p, args[1]);
+                    return true;
+                }
+            }
+            p.sendMessage(ChatColor.YELLOW + "Usage: /edgeloot <reload|give> [templateId]");
+            return true;
+        }
+
+        if (cmd.equals("edgedungeon")) {
+            if (!p.isOp()) return false;
+            if (args.length < 1) {
+                p.sendMessage(ChatColor.YELLOW + "Usage: /edgedungeon <enter|leave|reload> [dungeonId]");
+                return true;
+            }
+            net.elpixedge.core.dungeon.DungeonModule dMgr = plugin.getModule(net.elpixedge.core.dungeon.DungeonModule.class);
+            if (args[0].equalsIgnoreCase("enter") && args.length > 1) {
+                dMgr.enterDungeon(p, args[1].toLowerCase());
+                p.sendMessage(ChatColor.GREEN + "Entering dungeon: " + args[1]);
+                return true;
+            } else if (args[0].equalsIgnoreCase("leave")) {
+                dMgr.exitDungeon(p);
+                return true;
+            } else if (args[0].equalsIgnoreCase("reload")) {
+                dMgr.loadConfig();
+                p.sendMessage(ChatColor.GREEN + "Dungeon config reloaded.");
+                return true;
+            }
             return true;
         }
 
@@ -244,6 +284,15 @@ public class EdgeCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (command.getName().equalsIgnoreCase("edgeloot")) {
+            List<String> completions = new ArrayList<>();
+            if (args.length == 1) {
+                for (String sub : new String[]{"reload", "give"}) {
+                    if (sub.startsWith(args[0].toLowerCase())) completions.add(sub);
+                }
+                return completions;
+            }
+        }
         if (command.getName().equalsIgnoreCase("edgeitem") && args.length == 1) {
             List<String> completions = new ArrayList<>();
             if (plugin.getConfig().getConfigurationSection("items") != null) {
@@ -314,6 +363,15 @@ public class EdgeCommand implements CommandExecutor, TabCompleter {
             List<String> completions = new ArrayList<>();
             if (args.length == 1) {
                 for (String sub : new String[]{"play", "stop"}) {
+                    if (sub.startsWith(args[0].toLowerCase())) completions.add(sub);
+                }
+                return completions;
+            }
+        }
+        if (command.getName().equalsIgnoreCase("edgedungeon")) {
+            List<String> completions = new ArrayList<>();
+            if (args.length == 1) {
+                for (String sub : new String[]{"enter", "leave", "reload"}) {
                     if (sub.startsWith(args[0].toLowerCase())) completions.add(sub);
                 }
                 return completions;
