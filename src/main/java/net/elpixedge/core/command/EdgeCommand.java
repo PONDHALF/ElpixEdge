@@ -1,0 +1,324 @@
+package net.elpixedge.core.command;
+
+import net.elpixedge.core.ElpixEdge;
+import net.elpixedge.core.gui.GuiModule;
+import net.elpixedge.core.tag.TagManager;
+import net.elpixedge.core.item.ItemModule;
+import net.elpixedge.core.instance.SchematicInstanceManager;
+import net.elpixedge.core.instance.CinematicController;
+import net.elpixedge.core.player.PlayerModule;
+import net.elpixedge.core.player.PlayerProfile;
+import net.elpixedge.core.utils.Keys;
+import org.bukkit.ChatColor;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class EdgeCommand implements CommandExecutor, TabCompleter {
+
+    private final ElpixEdge plugin;
+
+    public EdgeCommand(ElpixEdge plugin) {
+        this.plugin = plugin;
+    }
+
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!(sender instanceof Player)) return false;
+        Player p = (Player) sender;
+        String cmd = command.getName().toLowerCase();
+
+        if (cmd.equals("claimstash")) {
+            plugin.getModule(PlayerModule.class).getStashManager().claimStash(p);
+            return true;
+        }
+
+        if (cmd.equals("custom_holo")) {
+            PlayerProfile profile = plugin.getModule(PlayerModule.class).getProfile(p);
+            if (profile != null) {
+                if (profile.isHideDamageHolo()) {
+                    profile.setHideDamageHolo(false);
+                    p.sendMessage(ChatColor.GREEN + "Damage holograms enabled.");
+                } else {
+                    profile.setHideDamageHolo(true);
+                    p.sendMessage(ChatColor.RED + "Damage holograms disabled.");
+                }
+            }
+            return true;
+        }
+
+        if (cmd.equals("status")) {
+            plugin.getModule(GuiModule.class).openStatusMenu(p);
+            return true;
+        }
+
+        if (cmd.equals("admin_book")) {
+            if (!p.isOp()) {
+                p.sendMessage(org.bukkit.ChatColor.RED + "You do not have permission.");
+                return true;
+            }
+            // Give admin book item
+            ItemStack adminBook = plugin.getModule(net.elpixedge.core.item.ItemModule.class).generateCustomItem("super_admin_book");
+            if (adminBook != null) p.getInventory().addItem(adminBook);
+            plugin.getModule(net.elpixedge.core.gui.GuiModule.class).openSuperAdminMenu(p);
+            return true;
+        }
+
+        if (cmd.equals("edgemob") && args.length > 0) {
+            String mobId = args[0].toLowerCase();
+            String baseEntStr = plugin.getConfig().getString("mobs." + mobId + ".base_entity", mobId);
+            EntityType eType;
+            try {
+                eType = EntityType.valueOf(baseEntStr.toUpperCase());
+            } catch (IllegalArgumentException ex) {
+                eType = EntityType.ENDERMAN;
+            }
+            LivingEntity mob = (LivingEntity) p.getWorld().spawnEntity(p.getLocation(), eType);
+            mob.getPersistentDataContainer().set(Keys.customMobId, PersistentDataType.STRING, args[0].toLowerCase());
+            mob.getPersistentDataContainer().set(Keys.lvl, PersistentDataType.INTEGER, 10);
+            
+            PlayerModule pdm = plugin.getModule(PlayerModule.class);
+            Attribute maxHpAttr = pdm != null ? pdm.getHealthAttribute() : Attribute.MAX_HEALTH;
+            if (mob.getAttribute(maxHpAttr) != null) mob.getAttribute(maxHpAttr).setBaseValue(500.0);
+            mob.setHealth(500.0);
+            
+            net.elpixedge.core.combat.CombatModule combat = plugin.getModule(net.elpixedge.core.combat.CombatModule.class);
+            if (combat != null) {
+                combat.updateMobName(mob);
+                combat.applyBetterModel(mob, mobId);
+                combat.equipMob(mob, mobId);
+            }
+
+            net.elpixedge.core.combat.CustomMobAbilityModule abilityMod = plugin.getModule(net.elpixedge.core.combat.CustomMobAbilityModule.class);
+            if (abilityMod != null) abilityMod.registerMob(mob);
+            
+            return true;
+        }
+
+        if (cmd.equals("edgeitem") && args.length > 0) {
+            ItemStack item = plugin.getModule(ItemModule.class).generateCustomItem(args[0].toLowerCase());
+            if (item != null) p.getInventory().addItem(item);
+            else p.sendMessage(ChatColor.RED + "Item not found in config.");
+            return true;
+        }
+
+        // /edgetag <add|remove|list> <player> [tag]
+        if (cmd.equals("edgetag")) {
+            if (!p.isOp()) {
+                p.sendMessage(ChatColor.RED + "You do not have permission.");
+                return true;
+            }
+            if (args.length < 1) {
+                p.sendMessage(ChatColor.YELLOW + "Usage: /edgetag <add|remove|list> <player> [tag]");
+                p.sendMessage(ChatColor.YELLOW + "       /edgetag reload");
+                return true;
+            }
+            String sub = args[0].toLowerCase();
+            if (sub.equals("reload")) {
+                net.elpixedge.core.instance.NpcVisibilityManager npcMgr = plugin.getModule(net.elpixedge.core.instance.NpcVisibilityManager.class);
+                if (npcMgr != null) {
+                    npcMgr.reloadConfig();
+                    p.sendMessage(ChatColor.GREEN + "NPC Visibility rules reloaded.");
+                } else {
+                    p.sendMessage(ChatColor.RED + "NpcVisibilityManager is not loaded.");
+                }
+                return true;
+            }
+            if (args.length < 2) {
+                p.sendMessage(ChatColor.YELLOW + "Usage: /edgetag <add|remove|list> <player> [tag]");
+                return true;
+            }
+            Player target = org.bukkit.Bukkit.getPlayerExact(args[1]);
+            if (target == null) {
+                p.sendMessage(ChatColor.RED + "Player not found: " + args[1]);
+                return true;
+            }
+            TagManager tagMgr = plugin.getModule(TagManager.class);
+            if (tagMgr == null) {
+                p.sendMessage(ChatColor.RED + "TagManager is not loaded.");
+                return true;
+            }
+            switch (sub) {
+                case "add":
+                    if (args.length < 3) {
+                        p.sendMessage(ChatColor.YELLOW + "Usage: /edgetag add <player> <tag>");
+                        return true;
+                    }
+                    tagMgr.addTag(target, args[2]);
+                    p.sendMessage(ChatColor.GREEN + "Tag '" + args[2] + "' added to " + target.getName() + ".");
+                    return true;
+                case "remove":
+                    if (args.length < 3) {
+                        p.sendMessage(ChatColor.YELLOW + "Usage: /edgetag remove <player> <tag>");
+                        return true;
+                    }
+                    tagMgr.removeTag(target, args[2]);
+                    p.sendMessage(ChatColor.GREEN + "Tag '" + args[2] + "' removed from " + target.getName() + ".");
+                    return true;
+                case "list":
+                    java.util.Set<String> tags = tagMgr.getTags(target);
+                    if (tags.isEmpty()) {
+                        p.sendMessage(ChatColor.GRAY + target.getName() + " has no tags.");
+                    } else {
+                        p.sendMessage(ChatColor.GOLD + target.getName() + "'s tags (" + tags.size() + "):");
+                        for (String tag : tags) {
+                            p.sendMessage(ChatColor.GRAY + " - " + tag);
+                        }
+                    }
+                    return true;
+                default:
+                    p.sendMessage(ChatColor.YELLOW + "Usage: /edgetag <add|remove|list> <player> [tag]");
+                    p.sendMessage(ChatColor.YELLOW + "       /edgetag reload");
+                    return true;
+            }
+        }
+        
+        // /edgeinstance <enter|leave> [instanceId]
+        if (cmd.equals("edgeinstance")) {
+            if (!p.isOp()) {
+                p.sendMessage(ChatColor.RED + "You do not have permission.");
+                return true;
+            }
+            if (args.length < 1) {
+                p.sendMessage(ChatColor.YELLOW + "Usage: /edgeinstance <enter|leave> [instanceId]");
+                return true;
+            }
+            SchematicInstanceManager instMgr = plugin.getModule(SchematicInstanceManager.class);
+            if (instMgr == null) {
+                p.sendMessage(ChatColor.RED + "SchematicInstanceManager is not loaded.");
+                return true;
+            }
+            if (args[0].equalsIgnoreCase("enter")) {
+                if (args.length < 2) {
+                    p.sendMessage(ChatColor.YELLOW + "Usage: /edgeinstance enter <schematicName>");
+                    return true;
+                }
+                instMgr.pasteTemplate(args[1].toLowerCase(), p);
+                return true;
+            } else if (args[0].equalsIgnoreCase("leave")) {
+                instMgr.cleanupInstance(p.getUniqueId());
+                return true;
+            }
+        }
+
+        // /edgescene <play|stop> [cutsceneId]
+        if (cmd.equals("edgescene")) {
+            if (!p.isOp()) {
+                p.sendMessage(ChatColor.RED + "You do not have permission.");
+                return true;
+            }
+            if (args.length < 1) {
+                p.sendMessage(ChatColor.YELLOW + "Usage: /edgescene <play|stop> [cutsceneId]");
+                return true;
+            }
+            CinematicController cineCtrl = plugin.getModule(CinematicController.class);
+            if (cineCtrl == null) {
+                p.sendMessage(ChatColor.RED + "CinematicController is not loaded.");
+                return true;
+            }
+            if (args[0].equalsIgnoreCase("play")) {
+                if (args.length < 2) {
+                    p.sendMessage(ChatColor.YELLOW + "Usage: /edgescene play <cutsceneId>");
+                    return true;
+                }
+                cineCtrl.playCinematic(p, args[1].toLowerCase());
+                return true;
+            } else if (args[0].equalsIgnoreCase("stop")) {
+                cineCtrl.endCinematic(p, false);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (command.getName().equalsIgnoreCase("edgeitem") && args.length == 1) {
+            List<String> completions = new ArrayList<>();
+            if (plugin.getConfig().getConfigurationSection("items") != null) {
+                for (String key : plugin.getConfig().getConfigurationSection("items").getKeys(false)) {
+                    if (key.toLowerCase().startsWith(args[0].toLowerCase())) completions.add(key);
+                }
+            }
+            return completions;
+        }
+        if (command.getName().equalsIgnoreCase("edgetag")) {
+            List<String> completions = new ArrayList<>();
+            if (args.length == 1) {
+                for (String sub : new String[]{"add", "remove", "list"}) {
+                    if (sub.startsWith(args[0].toLowerCase())) completions.add(sub);
+                }
+                return completions;
+            }
+            if (args.length == 2) {
+                for (org.bukkit.entity.Player online : org.bukkit.Bukkit.getOnlinePlayers()) {
+                    if (online.getName().toLowerCase().startsWith(args[1].toLowerCase())) completions.add(online.getName());
+                }
+                return completions;
+            }
+            if (args.length == 3 && args[0].equalsIgnoreCase("remove")) {
+                org.bukkit.entity.Player target = org.bukkit.Bukkit.getPlayerExact(args[1]);
+                if (target != null) {
+                    TagManager tagMgr = plugin.getModule(TagManager.class);
+                    if (tagMgr != null) {
+                        for (String tag : tagMgr.getTags(target)) {
+                            if (tag.startsWith(args[2].toLowerCase())) completions.add(tag);
+                        }
+                    }
+                }
+                return completions;
+            }
+        }
+        if (command.getName().equalsIgnoreCase("edgeinstance")) {
+            List<String> completions = new ArrayList<>();
+            if (args.length == 1) {
+                for (String sub : new String[]{"enter", "leave"}) {
+                    if (sub.startsWith(args[0].toLowerCase())) completions.add(sub);
+                }
+                return completions;
+            }
+            if (args.length == 2 && args[0].equalsIgnoreCase("enter")) {
+                java.util.Set<String> names = new java.util.HashSet<>();
+                // ElpixEdge schematics folder
+                java.io.File dir1 = new java.io.File(plugin.getDataFolder(), "schematics");
+                if (dir1.exists() && dir1.isDirectory()) {
+                    for (java.io.File f : dir1.listFiles()) {
+                        String n = f.getName().replaceAll("\\.(schem|schm)$", "");
+                        if (n.toLowerCase().startsWith(args[1].toLowerCase())) names.add(n);
+                    }
+                }
+                // FastAsyncWorldEdit schematics folder
+                java.io.File dir2 = new java.io.File(plugin.getServer().getWorldContainer(), "plugins/FastAsyncWorldEdit/schematics");
+                if (dir2.exists() && dir2.isDirectory()) {
+                    for (java.io.File f : dir2.listFiles()) {
+                        String n = f.getName().replaceAll("\\.(schem|schm)$", "");
+                        if (n.toLowerCase().startsWith(args[1].toLowerCase())) names.add(n);
+                    }
+                }
+                completions.addAll(names);
+                return completions;
+            }
+        }
+        if (command.getName().equalsIgnoreCase("edgescene")) {
+            List<String> completions = new ArrayList<>();
+            if (args.length == 1) {
+                for (String sub : new String[]{"play", "stop"}) {
+                    if (sub.startsWith(args[0].toLowerCase())) completions.add(sub);
+                }
+                return completions;
+            }
+        }
+        return null;
+    }
+}
