@@ -46,7 +46,6 @@ public class LootModule implements Module, Listener {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
         loadConfig();
 
-        // Updater task for packet-based visibility and holograms
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -97,7 +96,8 @@ public class LootModule implements Module, Listener {
 
         if (jsonFile.exists()) {
             try (java.io.FileReader reader = new java.io.FileReader(jsonFile)) {
-                List<ChestData> loadedData = gson.fromJson(reader, new TypeToken<List<ChestData>>(){}.getType());
+                java.lang.reflect.Type listType = new TypeToken<List<ChestData>>(){}.getType();
+                List<ChestData> loadedData = gson.fromJson(reader, listType);
                 if (loadedData != null) {
                     for (ChestData data : loadedData) {
                         LootChest template = templates.get(data.template);
@@ -106,13 +106,9 @@ public class LootModule implements Module, Listener {
                             chests.put(data.id, instance);
                             dataList.add(data);
                         } else {
-                            // Template was deleted from YAML!
                             needsCleanup = true;
-                            
-                            // Clear visual block for online players before removing
                             clearVisualBlock(data);
-                            
-                            plugin.getLogger().warning("Loot Chest instance '" + data.id + "' refers to missing template '" + data.template + "'. Removing from JSON and clearing block.");
+                            plugin.getLogger().warning("Loot Chest instance '" + data.id + "' refers to missing template '" + data.template + "'. Removing.");
                         }
                     }
                 }
@@ -121,28 +117,8 @@ public class LootModule implements Module, Listener {
             }
         }
 
-        // 3. Save cleaned data back to JSON if needed
         if (needsCleanup) {
             saveInstancesToJson(jsonFile, dataList);
-        }
-    }
-
-    private void clearVisualBlock(ChestData data) {
-        World world = Bukkit.getWorld(data.world);
-        if (world == null) return;
-        Location loc = new Location(world, data.x, data.y, data.z);
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            if (p.getWorld().equals(world) && p.getLocation().distanceSquared(loc) < 100 * 100) {
-                p.sendBlockChange(loc, Material.AIR.createBlockData());
-            }
-        }
-    }
-
-    private void saveInstancesToJson(File file, List<ChestData> dataList) {
-        try (java.io.FileWriter writer = new java.io.FileWriter(file)) {
-            gson.toJson(dataList, writer);
-        } catch (Exception e) {
-            plugin.getLogger().severe("Failed to save loot_chests.json: " + e.getMessage());
         }
     }
 
@@ -163,9 +139,9 @@ public class LootModule implements Module, Listener {
         List<Map<?, ?>> rewards = sec.getMapList("rewards");
         for (Map<?, ?> r : rewards) {
             String itemId = (String) r.get("item_id");
-            double chance = ((Number) r.getOrDefault("chance", 1.0)).doubleValue();
-            int min = ((Number) r.getOrDefault("min", 1)).intValue();
-            int max = ((Number) r.getOrDefault("max", 1)).intValue();
+            double chance = r.containsKey("chance") ? ((Number) r.get("chance")).doubleValue() : 1.0;
+            int min = r.containsKey("min") ? ((Number) r.get("min")).intValue() : 1;
+            int max = r.containsKey("max") ? ((Number) r.get("max")).intValue() : 1;
             chest.getLootTable().add(new LootChest.LootItem(itemId, chance, min, max));
         }
         return chest;
@@ -189,7 +165,9 @@ public class LootModule implements Module, Listener {
         instance.getLootTable().addAll(template.getLootTable());
 
         World world = Bukkit.getWorld(data.world);
-        instance.setLocation(new Location(world, data.x, data.y, data.z));
+        if (world != null) {
+            instance.setLocation(new Location(world, data.x, data.y, data.z));
+        }
         
         return instance;
     }
@@ -257,16 +235,35 @@ public class LootModule implements Module, Listener {
         }
     }
 
+    private void clearVisualBlock(ChestData data) {
+        World world = Bukkit.getWorld(data.world);
+        if (world == null) return;
+        Location loc = new Location(world, data.x, data.y, data.z);
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            if (p.getWorld().equals(world) && p.getLocation().distanceSquared(loc) < 100 * 100) {
+                p.sendBlockChange(loc, Material.AIR.createBlockData());
+            }
+        }
+    }
+
+    private void saveInstancesToJson(File file, List<ChestData> dataList) {
+        try (java.io.FileWriter writer = new java.io.FileWriter(file)) {
+            gson.toJson(dataList, writer);
+        } catch (Exception e) {
+            plugin.getLogger().severe("Failed to save loot_chests.json: " + e.getMessage());
+        }
+    }
+
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
         ItemStack item = event.getItemInHand();
-        if (item.getItemMeta() == null) return;
+        if (item == null || item.getItemMeta() == null) return;
         
         NamespacedKey key = new NamespacedKey(plugin, "loot_template_id");
         String templateId = item.getItemMeta().getPersistentDataContainer().get(key, PersistentDataType.STRING);
         
         if (templateId != null) {
-            event.setCancelled(true); // Don't place a real block
+            event.setCancelled(true);
             
             LootChest template = templates.get(templateId);
             if (template == null) {
@@ -274,7 +271,6 @@ public class LootModule implements Module, Listener {
                 return;
             }
 
-            // Create new instance data
             String instanceId = templateId + "_" + UUID.randomUUID().toString().substring(0, 5);
             Location loc = event.getBlock().getLocation();
             
@@ -286,83 +282,63 @@ public class LootModule implements Module, Listener {
             newData.y = loc.getY();
             newData.z = loc.getZ();
 
-            // Register in memory
             LootChest instance = createInstanceFromTemplate(instanceId, newData, template);
             chests.put(instanceId, instance);
-
-            // Save to JSON
             addInstanceToJson(newData);
             
-            event.getPlayer().sendMessage(ChatColor.GREEN + "Loot Chest '" + template.getDisplayName() + ChatColor.GREEN + "' placed and saved!");
-            event.getPlayer().playSound(loc, Sound.BLOCK_CHEST_LOCKED, 1.0f, 1.2f);
+            event.getPlayer().sendMessage(ChatColor.GREEN + "Loot Chest '" + template.getDisplayName() + ChatColor.GREEN + "' placed!");
         }
     }
 
     private void addInstanceToJson(ChestData newData) {
         File jsonFile = new File(plugin.getDataFolder(), "data/loot_chests.json");
         List<ChestData> dataList = new ArrayList<>();
-        
         if (jsonFile.exists()) {
             try (java.io.FileReader reader = new java.io.FileReader(jsonFile)) {
-                List<ChestData> loadedData = gson.fromJson(reader, new TypeToken<List<ChestData>>(){}.getType());
+                java.lang.reflect.Type listType = new TypeToken<List<ChestData>>(){}.getType();
+                List<ChestData> loadedData = gson.fromJson(reader, listType);
                 if (loadedData != null) dataList.addAll(loadedData);
             } catch (Exception ignored) {}
         }
-        
         dataList.add(newData);
         saveInstancesToJson(jsonFile, dataList);
     }
 
     public void giveChestItem(Player player, String templateId) {
         LootChest template = templates.get(templateId);
-        if (template == null) {
-            player.sendMessage(ChatColor.RED + "Loot Template '" + templateId + "' not found!");
-            return;
-        }
+        if (template == null) return;
 
         ItemStack item = new ItemStack(template.getBlockType());
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.setDisplayName(ChatColor.GOLD + "Loot Chest: " + template.getDisplayName());
-            List<String> lore = new ArrayList<>();
-            lore.add(ChatColor.GRAY + "Type: " + ChatColor.YELLOW + template.getClass().getSimpleName().replace("Chest", ""));
-            lore.add(ChatColor.GRAY + "Place this to register a new chest.");
-            meta.setLore(lore);
-            
             NamespacedKey key = new NamespacedKey(plugin, "loot_template_id");
             meta.getPersistentDataContainer().set(key, PersistentDataType.STRING, templateId);
             item.setItemMeta(meta);
         }
-
         player.getInventory().addItem(item);
-        player.sendMessage(ChatColor.GREEN + "Received Loot Chest item for: " + template.getDisplayName());
     }
 
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
         if (event.getClickedBlock() == null) return;
-
         Location loc = event.getClickedBlock().getLocation();
         Player player = event.getPlayer();
 
-        // --- Admin Removal (Sneak + Left Click) ---
         if (event.getAction() == Action.LEFT_CLICK_BLOCK && player.isOp() && player.isSneaking()) {
             for (LootChest chest : chests.values()) {
-                if (chest.getLocation().equals(loc)) {
+                if (chest.getLocation() != null && chest.getLocation().equals(loc)) {
                     removeChestInstance(chest.getId());
-                    player.sendMessage(ChatColor.RED + "Loot Chest removed successfully.");
-                    player.playSound(loc, Sound.BLOCK_GLASS_BREAK, 1.0f, 0.5f);
+                    player.sendMessage(ChatColor.RED + "Loot Chest removed.");
                     event.setCancelled(true);
                     return;
                 }
             }
-            return;
         }
 
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
-        
         for (LootChest chest : chests.values()) {
-            if (chest.getLocation().equals(loc) && chest.canSee(player)) {
+            if (chest.getLocation() != null && chest.getLocation().equals(loc) && chest.canSee(player)) {
                 event.setCancelled(true);
                 openChest(player, chest);
                 return;
@@ -374,20 +350,18 @@ public class LootModule implements Module, Listener {
         LootChest chest = chests.remove(id);
         if (chest == null) return;
 
-        // Clear visual for everyone
         ChestData dummy = new ChestData();
-        dummy.id = id;
         dummy.world = chest.getLocation().getWorld().getName();
         dummy.x = chest.getLocation().getX();
         dummy.y = chest.getLocation().getY();
         dummy.z = chest.getLocation().getZ();
         clearVisualBlock(dummy);
 
-        // Remove from JSON
         File jsonFile = new File(plugin.getDataFolder(), "data/loot_chests.json");
         if (jsonFile.exists()) {
             try (java.io.FileReader reader = new java.io.FileReader(jsonFile)) {
-                List<ChestData> dataList = gson.fromJson(reader, new TypeToken<List<ChestData>>(){}.getType());
+                java.lang.reflect.Type listType = new TypeToken<List<ChestData>>(){}.getType();
+                List<ChestData> dataList = gson.fromJson(reader, listType);
                 if (dataList != null) {
                     dataList.removeIf(d -> d.id.equals(id));
                     saveInstancesToJson(jsonFile, dataList);
@@ -397,70 +371,39 @@ public class LootModule implements Module, Listener {
     }
 
     private void openChest(Player player, LootChest chest) {
-        if (!chest.canOpen(player)) {
-            player.sendMessage(ChatColor.RED + "You cannot open this chest yet!");
-            return;
-        }
+        if (!chest.canOpen(player)) return;
 
-        // Play visual/sound effects
-        player.playSound(chest.getLocation(), Sound.BLOCK_CHEST_OPEN, 1.0f, 1.0f);
-        player.spawnParticle(Particle.HAPPY_VILLAGER, chest.getLocation().clone().add(0.5, 0.5, 0.5), 20, 0.3, 0.3, 0.3);
-
-        // Process Rewards
         ProgressionModule progression = plugin.getModule(ProgressionModule.class);
         if (progression != null) {
-            progression.addExp(player, chest.getSkillExp());
+            progression.addSkillExp(player, "Exploration", chest.getSkillExp());
             if (chest.getCollectionId() != null) {
-                progression.addCollectionExp(player, chest.getCollectionId(), chest.getCollectionExp());
+                progression.addCollectionExp(player, "exploration", chest.getCollectionId(), chest.getCollectionExp());
             }
         }
 
         net.elpixedge.core.item.ItemModule itemMod = plugin.getModule(net.elpixedge.core.item.ItemModule.class);
         for (LootChest.LootItem item : chest.getLootTable()) {
             if (Math.random() <= item.getChance()) {
-                int amount = item.getMinAmount() + (int) (Math.random() * (item.getMaxAmount() - item.getMinAmount() + 1));
                 ItemStack is = null;
-                
-                String itemId = item.getItemId();
-                if (itemId.startsWith("minecraft:")) {
+                if (item.getItemId().startsWith("minecraft:")) {
                     try {
-                        Material mat = Material.valueOf(itemId.replace("minecraft:", "").toUpperCase());
+                        Material mat = Material.valueOf(item.getItemId().replace("minecraft:", "").toUpperCase());
                         is = new ItemStack(mat);
                     } catch (Exception ignored) {}
-                } else {
-                    if (itemMod != null) {
-                        is = itemMod.generateCustomItem(itemId);
-                    }
+                } else if (itemMod != null) {
+                    is = itemMod.generateCustomItem(item.getItemId());
                 }
 
                 if (is != null) {
+                    int amount = item.getMinAmount() + (int) (Math.random() * (item.getMaxAmount() - item.getMinAmount() + 1));
                     is.setAmount(amount);
-                    if (player.getInventory().firstEmpty() != -1) {
-                        player.getInventory().addItem(is);
-                    } else {
-                        player.getWorld().dropItemNaturally(player.getLocation(), is);
-                    }
+                    player.getInventory().addItem(is);
                 }
             }
         }
 
-        // Mark as opened
         chest.onOpen(player);
-        
-        // Save state for exploration chests
-        if (chest instanceof ExplorationChest) {
-            player.getPersistentDataContainer().set(new NamespacedKey(plugin, "opened_" + chest.getId()), PersistentDataType.BYTE, (byte) 1);
-        }
-
-        player.sendMessage(ChatColor.GREEN + "You opened a " + chest.getDisplayName() + "!");
-        
-        // Visual feedback (fake closing)
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                updatePlayerChests(player);
-            }
-        }.runTaskLater(plugin, 2L);
+        updatePlayerChests(player);
     }
 
     public LootChest getChest(String id) {

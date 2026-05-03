@@ -12,11 +12,17 @@ import java.util.UUID;
 
 public class EventChest extends LootChest {
     @Getter @Setter
-    private long respawnTimeMs;
+    private int respawnTimeSec;
     private final Map<UUID, Long> playerCooldowns = new HashMap<>();
 
-    public EventChest(String id, Location location) {
+    public EventChest(String id, int respawnTimeSec) {
+        super(id);
+        this.respawnTimeSec = respawnTimeSec;
+    }
+
+    public EventChest(String id, Location location, int respawnTimeSec) {
         super(id, location);
+        this.respawnTimeSec = respawnTimeSec;
     }
 
     @Override
@@ -27,8 +33,8 @@ public class EventChest extends LootChest {
 
     @Override
     public void onOpen(Player player) {
-        if (respawnTimeMs > 0) {
-            playerCooldowns.put(player.getUniqueId(), System.currentTimeMillis() + respawnTimeMs);
+        if (respawnTimeSec > 0) {
+            playerCooldowns.put(player.getUniqueId(), System.currentTimeMillis() + (respawnTimeSec * 1000L));
         }
     }
 

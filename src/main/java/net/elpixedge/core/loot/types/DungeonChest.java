@@ -18,8 +18,16 @@ public class DungeonChest extends LootChest {
     
     private final Set<UUID> unlockedPlayers = new HashSet<>();
 
-    public DungeonChest(String id, Location location) {
+    public DungeonChest(String id, String dungeonId, String roomId) {
+        super(id);
+        this.dungeonId = dungeonId;
+        this.roomId = roomId;
+    }
+
+    public DungeonChest(String id, Location location, String dungeonId, String roomId) {
         super(id, location);
+        this.dungeonId = dungeonId;
+        this.roomId = roomId;
     }
 
     public void unlockFor(Player player) {
@@ -34,5 +42,10 @@ public class DungeonChest extends LootChest {
     @Override
     public void onOpen(Player player) {
         unlockedPlayers.remove(player.getUniqueId());
+    }
+    
+    @Override
+    public boolean canSee(Player player) {
+        return unlockedPlayers.contains(player.getUniqueId());
     }
 }

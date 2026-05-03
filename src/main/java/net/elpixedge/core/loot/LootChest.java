@@ -13,13 +13,17 @@ import java.util.List;
 @Setter
 public abstract class LootChest {
     protected final String id;
-    protected final Location location;
+    protected Location location;
     protected Material blockType = Material.CHEST;
     protected String displayName;
     protected List<LootItem> lootTable = new ArrayList<>();
     protected double skillExp = 0;
     protected double collectionExp = 0;
     protected String collectionId;
+
+    public LootChest(String id) {
+        this.id = id;
+    }
 
     public LootChest(String id, Location location) {
         this.id = id;
@@ -28,6 +32,10 @@ public abstract class LootChest {
 
     public abstract boolean canOpen(Player player);
     public abstract void onOpen(Player player);
+    
+    public boolean canSee(Player player) {
+        return true; // Default visibility
+    }
 
     @Getter
     @Setter
